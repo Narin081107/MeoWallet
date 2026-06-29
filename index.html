@@ -557,7 +557,7 @@
    STATE & CONFIGURATION
 ──────────────────────────────────────────── */
 // 💥 ĐIỀN API KEY CỦA BẠN VÀO GIỮA HAI DẤU NHÁY DƯỚI ĐÂY ĐỂ CHẠY CỨNG TRÊN GITHUB PAGES!
-const HARDCODED_API_KEY = "";
+const HARDCODED_API_KEY = "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";
 
 let expenses = JSON.parse(localStorage.getItem('mc_expenses') || '[]');
 let editingId = null;
@@ -948,7 +948,100 @@ function updateMsg(id, text) {
   const el = document.getElementById('msg-' + id);
   if (el) { el.textContent = text; el.className = 'msg ai'; }
 }
+async function sendChat() {
+  const input = document.getElementById('chatInput');
+  const q = input.value.trim();
+  if (!q) return;
+  const key = getActiveApiKey();
+  input.value = '';
 
+  appendMsg(q, 'user');
+
+  if (!key) {
+    appendMsg('⚠️ Vui lòng nhập hoặc cấu hình OpenRouter API key để sử dụng chat AI.', 'ai');
+    return;
+  }
+
+  const loadId = appendMsg('Đang suy nghĩ…', 'ai loading');
+
+  const context = expenses.length
+    ? `Dữ liệu chi tiêu hiện tại (JSON):\n${JSON.stringify(expenses.map(e=>({amount:e.amount,category:e.category,date:e.date,note:e.note})))}\n\nTổng số khoản chi: ${expenses.length}, Tổng số tiền đã tiêu: ${expenses.reduce((s,e)=>s+e.amount,0)} VND.`
+    : 'Chưa có khoản chi tiêu nào được ghi lại.';
+
+  // Lấy ngày hôm nay định dạng YYYY-MM-DD phục vụ cho việc tự động điền ngày
+  const todayStr = new Date().toISOString().slice(0, 10);
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': window.location.href,
+        'X-Title': 'MoneyCat Web App'
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        max_tokens: 400,
+        temperature: 0.3,
+        messages: [
+          { 
+            role: 'system', 
+            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh. Bạn nói tiếng Việt chuẩn, tự nhiên.
+Hãy trả lời câu hỏi của người dùng về các khoản chi tiêu một cách ngắn gọn (tối đa 2-3 câu). Luôn định dạng tiền tệ kiểu Việt Nam (ví dụ: 50.000₫).
+
+Nhiệm vụ đặc biệt: Nếu người dùng có ý định muốn THÊM một khoản chi tiêu mới qua lời nhắn này (ví dụ: "30k đổ xăng hãy thêm cho tôi", "thêm giúp mình 50k ăn trưa"), hãy phân tích Số tiền, Ghi chú, Danh mục và Ngày (nếu không nói ngày thì mặc định là hôm nay: ${todayStr}).
+Sau khi viết lời phản hồi tự nhiên cho họ, bạn BẮT BUỘC phải đính kèm chuỗi lệnh tạo dữ liệu ở CUỐI câu trả lời theo đúng định dạng cấu trúc sau để hệ thống xử lý:
+|||ADD_EXPENSE:{"amount":số_tiền_kiểu_số,"category":"Tên_Hạng_Mục_Chính_Xác","note":"Nội_dung_ghi_chú","date":"YYYY-MM-DD"}|||
+
+Danh mục chọn phải chính xác 1 trong các mục sau:
+${CATEGORIES.join(', ')}
+
+Ngữ cảnh dữ liệu hiện tại:\n${context}` 
+          },
+          { role: 'user', content: q }
+        ]
+      })
+    });
+    
+    const data = await res.json();
+    let reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
+    
+    // Kiểm tra xem AI có gửi kèm lệnh thêm chi tiêu không
+    const match = reply.match(/|||ADD_EXPENSE:([\s\S]*?)|||/);
+    if (match && match[1]) {
+      try {
+        const expenseData = JSON.parse(match[1].trim());
+        
+        // Tạo bản ghi mới dựa trên dữ liệu từ AI
+        const newExpense = {
+          id: uid(),
+          amount: parseFloat(expenseData.amount),
+          date: expenseData.date || todayStr,
+          note: expenseData.note || 'Ghi chép từ Chat AI',
+          category: CATEGORIES.includes(expenseData.category) ? expenseData.category : '📦 Khác'
+        };
+        
+        // Thêm vào danh sách state hiện tại và thực hiện cập nhật ứng dụng
+        expenses.push(newExpense);
+        save();
+        render();
+        
+        // Xóa phần chuỗi lệnh kỹ thuật khỏi giao diện chat để người dùng không nhìn thấy mã code thô
+        reply = reply.replace(/|||ADD_EXPENSE:([\s\S]*?)|||/, '').trim();
+        
+        // Hiển thị thông báo Toast nhỏ trên màn hình
+        toast(`✦ Đã tự động thêm: ${fmt(newExpense.amount)} vào mục ${newExpense.category}`);
+      } catch (e) {
+        console.error("Lỗi parse dữ liệu chi tiêu từ AI:", e);
+      }
+    }
+    
+    updateMsg(loadId, reply);
+  } catch (err) {
+    updateMsg(loadId, '⚠️ Lỗi kết nối mạng hoặc OpenRouter API key không hợp lệ. Vui lòng kiểm tra lại.');
+  }
+}
 /* ────────────────────────────────────────────
    INIT
 ──────────────────────────────────────────── */
