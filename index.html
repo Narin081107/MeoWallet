@@ -603,6 +603,7 @@ window.addEventListener('load', () => {
     s.textContent = '✓ Sẵn sàng (Mã Cố Định)';
     s.className = 'api-key-status set';
   }
+  render();
 });
 
 /* ────────────────────────────────────────────
@@ -859,7 +860,7 @@ function applyAiCategory() {
 }
 
 /* ────────────────────────────────────────────
-   AI CHAT WITH AUTO-ADD LOGIC (FIXED)
+   AI CHAT WITH AUTO-ADD LOGIC (FIXED & ROBUST)
 ──────────────────────────────────────────── */
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -898,20 +899,21 @@ async function sendChat() {
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        max_tokens: 300,
+        max_tokens: 400,
+        temperature: 0.1,
         messages: [
           { 
             role: 'system', 
             content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh.
-Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam.
-Luôn định dạng tiền tệ theo kiểu Việt Nam (ví dụ: 50.000₫ hoặc ₫50.000).
+Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam. Luôn định dạng tiền tệ kiểu Việt Nam (ví dụ: 30.000₫).
 
 ĐẶC BIỆT QUAN TRỌNG: 
-Nếu người dùng yêu cầu bạn thêm một khoản chi tiêu mới (ví dụ: "Thêm 30k đổ xăng", "30k ăn khuya hãy thêm cho tôi"), bạn phải:
-1. Phân tích ra Số tiền (Number), Hạng mục (phải thuộc danh sách dưới), Ghi chú, và Ngày (định dạng YYYY-MM-DD, dùng ngày hôm nay là "${new Date().toISOString().slice(0,10)}").
-2. Danh sách hạng mục hợp lệ: ${CATEGORIES.join(', ')}.
-3. Trả về câu trả lời bình thường kèm theo cấu trúc chính xác ở cuối câu như sau (không chứa dấu xuống dòng trong phần |||...|||):
-|||ADD_EXPENSE:{"amount":Số_tiền_bằng_số,"category":"Tên_hạng_mục","note":"Ghi_chú_khoản_chi","date":"YYYY-MM-DD"}|||
+Nếu người dùng yêu cầu bạn thêm chi tiêu (ví dụ: "Thêm ăn sáng 30k", "Ăn trưa hết 50000 hãy nhập giúp tôi"), bạn bắt buộc phải chèn chuỗi lệnh đặc biệt này ở CUỐI CÙNG của câu trả lời, không chứa ký tự xuống dòng bên trong cặp dấu |||:
+|||ADD_EXPENSE:{"amount":Số_tiền_bằng_số,"category":"Tên_hạng_mục_chính_xác","note":"Ghi_chú_khoản_chi","date":"YYYY-MM-DD"}|||
+
+Danh sách hạng mục hợp lệ bắt buộc chọn: ${CATEGORIES.join(', ')}.
+Hãy phân tích thông minh: ví dụ "ăn sáng", "ăn trưa" thì chọn "🍜 Ăn & Uống", "đổ xăng" thì chọn "🚌 Di Chuyển".
+Mặc định ngày hôm nay là "${new Date().toISOString().slice(0,10)}".
 
 Ngữ cảnh dữ liệu hiện tại:\n${context}` 
           },
@@ -923,32 +925,47 @@ Ngữ cảnh dữ liệu hiện tại:\n${context}`
     const data = await res.json();
     let reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
     
-    // ⚡️ ĐOẠN CODE "BẮT" CHUỖI TỰ ĐỘNG THÊM CHI TIÊU ĐÃ ĐƯỢC FIX ⚡️
+    // ⚡️ KHU VỰC XỬ LÝ LỆNH ĐỒNG BỘ GIAO DIỆN BÊN TRÁI ⚡️
     if (reply.includes('|||ADD_EXPENSE:')) {
-      const match = reply.match(/\|\|\|ADD_EXPENSE:(.*?)\|\|\|/);
-      if (match && match[1]) {
+      const startIdx = reply.indexOf('|||ADD_EXPENSE:');
+      const endIdx = reply.indexOf('|||', startIdx + 15);
+      
+      if (startIdx !== -1 && endIdx !== -1) {
+        const jsonStr = reply.substring(startIdx + 15, endIdx).trim();
         try {
-          const expenseData = JSON.parse(match[1]);
+          const expenseData = JSON.parse(jsonStr);
           
-          // Thêm vào mảng dữ liệu toàn cục
+          let finalCategory = expenseData.category;
+          // Kiểm tra và sửa lỗi nếu AI sinh sai danh mục chuẩn
+          if (!CATEGORIES.includes(finalCategory)) {
+            if (expenseData.note.toLowerCase().includes('ăn') || expenseData.note.toLowerCase().includes('sáng')) {
+              finalCategory = '🍜 Ăn & Uống';
+            } else if (expenseData.note.toLowerCase().includes('xăng') || expenseData.note.toLowerCase().includes('xe')) {
+              finalCategory = '🚌 Di Chuyển';
+            } else {
+              finalCategory = '📦 Khác';
+            }
+          }
+
+          // Đẩy trực tiếp vào mảng dữ liệu toàn cục để hiển thị sang bên trái
           expenses.push({
             id: uid(),
-            amount: parseFloat(expenseData.amount),
-            category: expenseData.category,
-            note: expenseData.note,
-            date: expenseData.date
+            amount: parseFloat(expenseData.amount) || 0,
+            category: finalCategory,
+            note: expenseData.note || 'Ghi chép từ Chat AI',
+            date: expenseData.date || new Date().toISOString().slice(0,10)
           });
           
-          // Lưu vào LocalStorage và Render lại toàn bộ giao diện
+          // Lưu dữ liệu vào LocalStorage và cập nhật ngay lập tức giao diện bên trái
           save();
           render();
           
-          // Xóa chuỗi raw |||ADD_EXPENSE:...||| khỏi giao diện chat để người dùng nhìn sạch sẽ hơn
-          reply = reply.replace(/\|\|\|ADD_EXPENSE:.*?\|\|\|/g, '').trim();
+          // Cắt bỏ phần chuỗi code |||ADD_EXPENSE...||| thô thiển để khung chat hiển thị sạch đẹp
+          reply = reply.substring(0, startIdx).trim() + reply.substring(endIdx + 3).trim();
           
-          toast('✦ AI đã tự động thêm 1 khoản chi tiêu!');
+          toast('✦ Đã cập nhật dữ liệu vào danh sách bên trái!');
         } catch (e) {
-          console.error("Lỗi parse JSON từ AI:", e);
+          console.error("Lỗi parse chuỗi JSON từ AI:", e);
         }
       }
     }
@@ -979,7 +996,6 @@ function updateMsg(id, text) {
 /* ────────────────────────────────────────────
    INIT
 ──────────────────────────────────────────── */
-render();
 </script>
 </body>
 </html>
