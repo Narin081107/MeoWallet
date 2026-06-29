@@ -395,6 +395,7 @@
 <body>
 <div class="app">
 
+<!-- HEADER -->
 <header>
   <div class="logo"><span class="logo-dot"></span> MoneyCat</div>
   <div class="header-right">
@@ -404,12 +405,14 @@
 </header>
 
 <main>
+  <!-- API KEY BAR -->
   <div class="api-key-bar">
     <label>🔑 OpenRouter API Key</label>
     <input type="password" id="apiKeyInput" placeholder="sk-or-v1-..." oninput="onApiKeyChange()" />
     <span class="api-key-status" id="apiKeyStatus">Chưa đặt</span>
   </div>
 
+  <!-- SUMMARY -->
   <div class="summary-grid">
     <div class="card">
       <div class="card-label">Tổng Chi Tiêu</div>
@@ -433,11 +436,13 @@
     </div>
   </div>
 
+  <!-- CATEGORY BREAKDOWN -->
   <div class="section-row">
     <div class="section-title">Phân Loại Chi Tiêu</div>
   </div>
   <div class="cat-grid" id="catBreakdown"></div>
 
+  <!-- EXPENSE LIST -->
   <div class="section-row">
     <div class="section-title">Tất Cả Ghi Chép</div>
     <button class="btn btn-primary" onclick="openModal()">+ Thêm Ghi Chép</button>
@@ -465,7 +470,10 @@
   </div>
 </main>
 
-</div><div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
+</div><!-- /app -->
+
+<!-- MODAL -->
+<div class="overlay" id="overlay" onclick="handleOverlayClick(event)">
   <div class="modal">
     <div class="modal-title">
       <span id="modalIcon">✦</span>
@@ -491,6 +499,7 @@
       <div class="form-error" id="errNote">Vui lòng nhập mô tả.</div>
     </div>
 
+    <!-- AI suggest -->
     <div class="ai-suggest" id="aiSuggestBox" style="display:none">
       <div class="spinner" id="aiSpinner" style="display:none"></div>
       <span class="ai-result-text" id="aiResultText">AI đang phân loại…</span>
@@ -522,8 +531,10 @@
   </div>
 </div>
 
+<!-- CHAT TOGGLE -->
 <button class="chat-toggle" onclick="toggleChat()" title="Hỏi MoneyCat về chi tiêu của bạn">🐱</button>
 
+<!-- CHAT PANEL -->
 <div class="chat-panel" id="chatPanel">
   <div class="chat-header">
     <span>✦ MoneyCat AI</span>
@@ -538,12 +549,14 @@
   </div>
 </div>
 
+<!-- TOAST -->
 <div id="toast"></div>
 
 <script>
 /* ────────────────────────────────────────────
    STATE & CONFIGURATION
 ──────────────────────────────────────────── */
+// 💥 ĐIỀN API KEY CỦA BẠN VÀO GIỮA HAI DẤU NHÁY DƯỚI ĐÂY ĐỂ CHẠY CỨNG TRÊN GITHUB PAGES!
 const HARDCODED_API_KEY = "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";
 
 let expenses = JSON.parse(localStorage.getItem('mc_expenses') || '[]');
@@ -597,13 +610,13 @@ window.addEventListener('load', () => {
     document.getElementById('themeToggle').textContent = '☀️';
   }
   
-  if (HARDCODED_API_KEY) {
+  // Khởi tạo trạng thái API Key khi tải trang
+  if (HARDCODED_API_KEY && HARDCODED_API_KEY !== "sk-or-v1-MÃ_KEY_CỦA_BẠN_Ở_ĐÂY") {
     document.getElementById('apiKeyInput').value = HARDCODED_API_KEY;
     const s = document.getElementById('apiKeyStatus');
     s.textContent = '✓ Sẵn sàng (Mã Cố Định)';
     s.className = 'api-key-status set';
   }
-  render();
 });
 
 /* ────────────────────────────────────────────
@@ -612,7 +625,9 @@ window.addEventListener('load', () => {
 function fmt(n) { return '₫' + Math.round(n).toLocaleString('vi-VN'); }
 
 function getActiveApiKey() { 
-  if (HARDCODED_API_KEY) return HARDCODED_API_KEY;
+  if (HARDCODED_API_KEY && HARDCODED_API_KEY !== "sk-or-v1-MÃ_KEY_CỦA_BẠN_Ở_ĐÂY") {
+    return HARDCODED_API_KEY;
+  }
   return document.getElementById('apiKeyInput').value.trim(); 
 }
 
@@ -795,7 +810,7 @@ function deleteExpense(id) {
 }
 
 /* ────────────────────────────────────────────
-   AI AUTO-CATEGORIZE
+   AI AUTO-CATEGORIZE (FIX CÓ HEADER GIÚP CHẠY TRÊN GITHUB)
 ──────────────────────────────────────────── */
 function onNoteChange() {
   clearTimeout(noteDebounce);
@@ -824,8 +839,8 @@ async function triggerAiCategorize() {
       headers: { 
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${key}`,
-        'HTTP-Referer': window.location.href,
-        'X-Title': 'MoneyCat Web App'
+        'HTTP-Referer': window.location.href, // Bắt buộc cho Github Pages
+        'X-Title': 'MoneyCat Web App'          // Bắt buộc cho Github Pages
       },
       body: JSON.stringify({
         model: 'google/gemini-flash-1.5-8b',
@@ -860,7 +875,7 @@ function applyAiCategory() {
 }
 
 /* ────────────────────────────────────────────
-   AI CHAT WITH AUTO-ADD LOGIC (FIXED & ROBUST)
+   AI CHAT (FIX CÓ HEADER GIÚP CHẠY TRÊN GITHUB)
 ──────────────────────────────────────────── */
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -894,82 +909,23 @@ async function sendChat() {
       headers: { 
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${key}`,
-        'HTTP-Referer': window.location.href,
-        'X-Title': 'MoneyCat Web App'
+        'HTTP-Referer': window.location.href, // Bắt buộc cho Github Pages
+        'X-Title': 'MoneyCat Web App'          // Bắt buộc cho Github Pages
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        max_tokens: 400,
-        temperature: 0.1,
+        max_tokens: 300,
         messages: [
           { 
             role: 'system', 
-            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh.
-Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam. Luôn định dạng tiền tệ kiểu Việt Nam (ví dụ: 30.000₫).
-
-ĐẶC BIỆT QUAN TRỌNG: 
-Nếu người dùng yêu cầu bạn thêm chi tiêu (ví dụ: "Thêm ăn sáng 30k", "Ăn trưa hết 50000 hãy nhập giúp tôi"), bạn bắt buộc phải chèn chuỗi lệnh đặc biệt này ở CUỐI CÙNG của câu trả lời, không chứa ký tự xuống dòng bên trong cặp dấu |||:
-|||ADD_EXPENSE:{"amount":Số_tiền_bằng_số,"category":"Tên_hạng_mục_chính_xác","note":"Ghi_chú_khoản_chi","date":"YYYY-MM-DD"}|||
-
-Danh sách hạng mục hợp lệ bắt buộc chọn: ${CATEGORIES.join(', ')}.
-Hãy phân tích thông minh: ví dụ "ăn sáng", "ăn trưa" thì chọn "🍜 Ăn & Uống", "đổ xăng" thì chọn "🚌 Di Chuyển".
-Mặc định ngày hôm nay là "${new Date().toISOString().slice(0,10)}".
-
-Ngữ cảnh dữ liệu hiện tại:\n${context}` 
+            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh. Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam. Hãy trả lời câu hỏi của người dùng về các khoản chi tiêu của họ một cách ngắn gọn, súc tích (tối đa 2-3 câu). Luôn định dạng tiền tệ theo kiểu Việt Nam (ví dụ: 50.000₫ hoặc ₫50.000). Ngữ cảnh dữ liệu hiện tại:\n${context}` 
           },
           { role: 'user', content: q }
         ]
       })
     });
-    
     const data = await res.json();
-    let reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
-    
-    // ⚡️ KHU VỰC XỬ LÝ LỆNH ĐỒNG BỘ GIAO DIỆN BÊN TRÁI ⚡️
-    if (reply.includes('|||ADD_EXPENSE:')) {
-      const startIdx = reply.indexOf('|||ADD_EXPENSE:');
-      const endIdx = reply.indexOf('|||', startIdx + 15);
-      
-      if (startIdx !== -1 && endIdx !== -1) {
-        const jsonStr = reply.substring(startIdx + 15, endIdx).trim();
-        try {
-          const expenseData = JSON.parse(jsonStr);
-          
-          let finalCategory = expenseData.category;
-          // Kiểm tra và sửa lỗi nếu AI sinh sai danh mục chuẩn
-          if (!CATEGORIES.includes(finalCategory)) {
-            if (expenseData.note.toLowerCase().includes('ăn') || expenseData.note.toLowerCase().includes('sáng')) {
-              finalCategory = '🍜 Ăn & Uống';
-            } else if (expenseData.note.toLowerCase().includes('xăng') || expenseData.note.toLowerCase().includes('xe')) {
-              finalCategory = '🚌 Di Chuyển';
-            } else {
-              finalCategory = '📦 Khác';
-            }
-          }
-
-          // Đẩy trực tiếp vào mảng dữ liệu toàn cục để hiển thị sang bên trái
-          expenses.push({
-            id: uid(),
-            amount: parseFloat(expenseData.amount) || 0,
-            category: finalCategory,
-            note: expenseData.note || 'Ghi chép từ Chat AI',
-            date: expenseData.date || new Date().toISOString().slice(0,10)
-          });
-          
-          // Lưu dữ liệu vào LocalStorage và cập nhật ngay lập tức giao diện bên trái
-          save();
-          render();
-          
-          // Cắt bỏ phần chuỗi code |||ADD_EXPENSE...||| thô thiển để khung chat hiển thị sạch đẹp
-          reply = reply.substring(0, startIdx).trim() + reply.substring(endIdx + 3).trim();
-          
-          toast('✦ Đã cập nhật dữ liệu vào danh sách bên trái!');
-        } catch (e) {
-          console.error("Lỗi parse chuỗi JSON từ AI:", e);
-        }
-      }
-    }
-    
+    const reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
     updateMsg(loadId, reply);
   } catch (err) {
     updateMsg(loadId, '⚠️ Lỗi kết nối mạng hoặc OpenRouter API key không hợp lệ. Vui lòng kiểm tra lại.');
@@ -996,6 +952,7 @@ function updateMsg(id, text) {
 /* ────────────────────────────────────────────
    INIT
 ──────────────────────────────────────────── */
+render();
 </script>
 </body>
 </html>
