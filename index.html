@@ -869,6 +869,7 @@ function toggleChat() {
 }
 
 async function sendChat() {
+  async function sendChat() {
   const input = document.getElementById('chatInput');
   const q = input.value.trim();
   if (!q) return;
@@ -880,6 +881,87 @@ async function sendChat() {
   if (!key) {
     appendMsg('⚠️ Vui lòng nhập hoặc cấu hình OpenRouter API key để sử dụng chat AI.', 'ai');
     return;
+  }
+
+  const loadId = appendMsg('Đang suy nghĩ…', 'ai loading');
+
+  const context = expenses.length
+    ? `Dữ liệu chi tiêu hiện tại (JSON):\n${JSON.stringify(expenses.map(e=>({amount:e.amount,category:e.category,date:e.date,note:e.note})))}\n\nTổng số khoản chi: ${expenses.length}.`
+    : 'Chưa có khoản chi tiêu nào được ghi lại.';
+
+  try {
+    const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
+      method: 'POST',
+      headers: { 
+        'Content-Type': 'application/json', 
+        'Authorization': `Bearer ${key}`,
+        'HTTP-Referer': window.location.href,
+        'X-Title': 'MoneyCat Web App'
+      },
+      body: JSON.stringify({
+        model: 'google/gemini-2.5-flash',
+        max_tokens: 400,
+        temperature: 0.1,
+        messages: [
+          { 
+            role: 'system', 
+            content: `Bạn là MoneyCat AI, trợ lý tài chính cá nhân. Bạn nói tiếng Việt chuẩn. 
+Nếu người dùng yêu cầu thêm chi tiêu (Ví dụ: "Thêm ăn sáng 30k"), bạn BẮT BUỘC phải tạo cấu trúc lệnh ở CUỐI phản hồi, KHÔNG xuống dòng:
+|||ADD_EXPENSE:{"amount":Số_tiền_bằng_số,"category":"Tên_hạng_mục_chính_xác","note":"Ghi_chú","date":"YYYY-MM-DD"}|||
+
+Danh sách hạng mục bắt buộc khớp 100%: ${CATEGORIES.join(', ')}. 
+Mặc định ngày hôm nay là "${new Date().toISOString().slice(0,10)}".` 
+          },
+          { role: 'user', content: q }
+        ]
+      })
+    });
+    
+    const data = await res.json();
+    let reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
+    
+    // ⚡️ KHU VỰC ÉP CẬP NHẬT SANG BÊN TRÁI ĐỒNG BỘ GIAO DIỆN ⚡️
+    if (reply.includes('|||ADD_EXPENSE:')) {
+      const parts = reply.split('|||ADD_EXPENSE:');
+      if (parts.length > 1) {
+        const jsonPart = parts[1].split('|||')[0].trim();
+        try {
+          const expenseData = JSON.parse(jsonPart);
+          
+          let finalCategory = expenseData.category;
+          if (!CATEGORIES.includes(finalCategory)) {
+            finalCategory = '🍜 Ăn & Uống'; // Dự phòng tự động ép mục ăn uống nếu AI chọn sai danh mục chuẩn
+          }
+
+          // 1. Đẩy trực tiếp vào mảng hiện tại
+          expenses.push({
+            id: uid(),
+            amount: parseFloat(expenseData.amount) || 0,
+            category: finalCategory,
+            note: expenseData.note || 'Ghi chép từ Chat AI',
+            date: expenseData.date || new Date().toISOString().slice(0,10)
+          });
+          
+          // 2. Ép lưu vào LocalStorage ngay lập tức
+          save();
+          
+          // 3. Gọi trực tiếp hàm render để bên trái vẽ lại bảng và cập nhật tổng tiền luôn
+          render();
+          
+          // Cắt chuỗi code thô để giao diện chat sạch đẹp
+          reply = parts[0].trim();
+          toast('✦ Đã tự động cập nhật vào danh sách bên trái!');
+        } catch (e) {
+          console.error("Lỗi parse JSON:", e);
+        }
+      }
+    }
+    
+    updateMsg(loadId, reply);
+  } catch (err) {
+    updateMsg(loadId, '⚠️ Có lỗi xảy ra khi kết nối mạng.');
+  }
+}
   }
 
   const loadId = appendMsg('Đang suy nghĩ…', 'ai loading');
