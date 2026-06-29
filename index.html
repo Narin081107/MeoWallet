@@ -597,7 +597,7 @@ window.addEventListener('load', () => {
     document.getElementById('themeToggle').textContent = '☀️';
   }
   
-  if (HARDCODED_API_KEY && HARDCODED_API_KEY !== "sk-or-v1-MÃ_KEY_CỦA_BẠN_Ở_ĐÂY") {
+  if (HARDCODED_API_KEY) {
     document.getElementById('apiKeyInput').value = HARDCODED_API_KEY;
     const s = document.getElementById('apiKeyStatus');
     s.textContent = '✓ Sẵn sàng (Mã Cố Định)';
@@ -611,9 +611,7 @@ window.addEventListener('load', () => {
 function fmt(n) { return '₫' + Math.round(n).toLocaleString('vi-VN'); }
 
 function getActiveApiKey() { 
-  if (HARDCODED_API_KEY && HARDCODED_API_KEY !== "sk-or-v1-MÃ_KEY_CỦA_BẠN_Ở_ĐÂY") {
-    return HARDCODED_API_KEY;
-  }
+  if (HARDCODED_API_KEY) return HARDCODED_API_KEY;
   return document.getElementById('apiKeyInput').value.trim(); 
 }
 
@@ -861,7 +859,7 @@ function applyAiCategory() {
 }
 
 /* ────────────────────────────────────────────
-   AI CHAT
+   AI CHAT WITH AUTO-ADD LOGIC (FIXED)
 ──────────────────────────────────────────── */
 function toggleChat() {
   chatOpen = !chatOpen;
@@ -889,8 +887,6 @@ async function sendChat() {
     ? `Dữ liệu chi tiêu hiện tại (JSON):\n${JSON.stringify(expenses.map(e=>({amount:e.amount,category:e.category,date:e.date,note:e.note})))}\n\nTổng số khoản chi: ${expenses.length}, Tổng số tiền đã tiêu: ${expenses.reduce((s,e)=>s+e.amount,0)} VND.`
     : 'Chưa có khoản chi tiêu nào được ghi lại.';
 
-  const todayStr = new Date().toISOString().slice(0, 10);
-
   try {
     const res = await fetch('https://openrouter.ai/api/v1/chat/completions', {
       method: 'POST',
@@ -902,20 +898,20 @@ async function sendChat() {
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
-        max_tokens: 450,
-        temperature: 0.2,
+        max_tokens: 300,
         messages: [
           { 
             role: 'system', 
-            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh. Bạn nói tiếng Việt chuẩn, tự nhiên.
-Hãy trả lời câu hỏi hoặc câu lệnh của người dùng một cách ngắn gọn, súc tích (tối đa 2-3 câu). Luôn định dạng tiền tệ kiểu Việt Nam (ví dụ: 50.000₫).
+            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh.
+Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam.
+Luôn định dạng tiền tệ theo kiểu Việt Nam (ví dụ: 50.000₫ hoặc ₫50.000).
 
-Nhiệm vụ đặc biệt: Nếu người dùng có ý định muốn THÊM một khoản chi tiêu mới qua câu chat này (ví dụ: "30k đổ xăng hãy thêm cho tôi", "thêm giúp mình 50k ăn trưa"), hãy phân tích Số tiền, Ghi chú, Danh mục phù hợp nhất và Ngày (mặc định là hôm nay: ${todayStr}).
-Sau khi viết lời phản hồi tự nhiên cho họ, bạn BẮT BUỘC phải đính kèm chuỗi lệnh tạo dữ liệu ở CUỐI câu trả lời theo đúng định dạng cấu trúc chính xác sau để hệ thống xử lý:
-|||ADD_EXPENSE:{"amount":số_tiền_kiểu_số,"category":"Tên_Hạng_Mục_Chính_Xác","note":"Nội_dung_ghi_chú","date":"YYYY-MM-DD"}|||
-
-Danh mục chọn phải chính xác 1 trong các mục sau:
-${CATEGORIES.join(', ')}
+ĐẶC BIỆT QUAN TRỌNG: 
+Nếu người dùng yêu cầu bạn thêm một khoản chi tiêu mới (ví dụ: "Thêm 30k đổ xăng", "30k ăn khuya hãy thêm cho tôi"), bạn phải:
+1. Phân tích ra Số tiền (Number), Hạng mục (phải thuộc danh sách dưới), Ghi chú, và Ngày (định dạng YYYY-MM-DD, dùng ngày hôm nay là "${new Date().toISOString().slice(0,10)}").
+2. Danh sách hạng mục hợp lệ: ${CATEGORIES.join(', ')}.
+3. Trả về câu trả lời bình thường kèm theo cấu trúc chính xác ở cuối câu như sau (không chứa dấu xuống dòng trong phần |||...|||):
+|||ADD_EXPENSE:{"amount":Số_tiền_bằng_số,"category":"Tên_hạng_mục","note":"Ghi_chú_khoản_chi","date":"YYYY-MM-DD"}|||
 
 Ngữ cảnh dữ liệu hiện tại:\n${context}` 
           },
@@ -927,31 +923,33 @@ Ngữ cảnh dữ liệu hiện tại:\n${context}`
     const data = await res.json();
     let reply = data.choices?.[0]?.message?.content?.trim() || 'Xin lỗi, tôi không thể xử lý yêu cầu lúc này.';
     
-    // Tìm gói lệnh ADD_EXPENSE dạng chuỗi bí mật từ AI
-    const match = reply.match(/\|\|\|ADD_EXPENSE:([\s\S]*?)\|\|\|/);
-    if (match && match[1]) {
-      try {
-        const expenseData = JSON.parse(match[1].trim());
-        
-        const newExpense = {
-          id: uid(),
-          amount: parseFloat(expenseData.amount),
-          date: expenseData.date || todayStr,
-          note: expenseData.note || 'Ghi chép từ Chat AI',
-          category: CATEGORIES.includes(expenseData.category) ? expenseData.category : '📦 Khác'
-        };
-        
-        // Thêm trực tiếp vào mảng dữ liệu ứng dụng
-        expenses.push(newExpense);
-        save();
-        render();
-        
-        // Xóa sạch phần chuỗi lệnh kỹ thuật |||ADD_EXPENSE...||| trước khi hiển thị lên khung chat của người dùng
-        reply = reply.replace(/\|\|\|ADD_EXPENSE:([\s\S]*?)\|\|\|/, '').trim();
-        
-        toast(`✦ Đã tự động thêm: ${fmt(newExpense.amount)} vào mục ${newExpense.category}`);
-      } catch (e) {
-        console.error("Lỗi xử lý JSON chi tiêu tự động:", e);
+    // ⚡️ ĐOẠN CODE "BẮT" CHUỖI TỰ ĐỘNG THÊM CHI TIÊU ĐÃ ĐƯỢC FIX ⚡️
+    if (reply.includes('|||ADD_EXPENSE:')) {
+      const match = reply.match(/\|\|\|ADD_EXPENSE:(.*?)\|\|\|/);
+      if (match && match[1]) {
+        try {
+          const expenseData = JSON.parse(match[1]);
+          
+          // Thêm vào mảng dữ liệu toàn cục
+          expenses.push({
+            id: uid(),
+            amount: parseFloat(expenseData.amount),
+            category: expenseData.category,
+            note: expenseData.note,
+            date: expenseData.date
+          });
+          
+          // Lưu vào LocalStorage và Render lại toàn bộ giao diện
+          save();
+          render();
+          
+          // Xóa chuỗi raw |||ADD_EXPENSE:...||| khỏi giao diện chat để người dùng nhìn sạch sẽ hơn
+          reply = reply.replace(/\|\|\|ADD_EXPENSE:.*?\|\|\|/g, '').trim();
+          
+          toast('✦ AI đã tự động thêm 1 khoản chi tiêu!');
+        } catch (e) {
+          console.error("Lỗi parse JSON từ AI:", e);
+        }
       }
     }
     
@@ -967,11 +965,7 @@ function appendMsg(text, type) {
   const div = document.createElement('div');
   div.className = 'msg ' + type;
   div.id = 'msg-' + id;
-  
-  // Loại bỏ các thẻ lệnh trước khi đẩy text thô vào tin nhắn của User
-  let cleanText = text.replace(/\|\|\|ADD_EXPENSE:([\s\S]*?)\|\|\|/, '').trim();
-  div.textContent = cleanText;
-  
+  div.textContent = text;
   msgs.appendChild(div);
   msgs.scrollTop = msgs.scrollHeight;
   return id;
@@ -979,12 +973,7 @@ function appendMsg(text, type) {
 
 function updateMsg(id, text) {
   const el = document.getElementById('msg-' + id);
-  if (el) { 
-    // Loại bỏ chuỗi lệnh kỹ thuật trước khi cập nhật lên bong bóng chat giao diện
-    let cleanText = text.replace(/\|\|\|ADD_EXPENSE:([\s\S]*?)\|\|\|/, '').trim();
-    el.textContent = cleanText; 
-    el.className = 'msg ai'; 
-  }
+  if (el) { el.textContent = text; el.className = 'msg ai'; }
 }
 
 /* ────────────────────────────────────────────
