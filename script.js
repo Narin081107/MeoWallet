@@ -2,7 +2,7 @@
    STATE & CONFIGURATION
 ──────────────────────────────────────────── */
 // 💥 ĐIỀN API KEY CỦA BẠN VÀO GIỮA HAI DẤU NHÁY DƯỚI ĐÂY ĐỂ CHẠY CỨNG TRÊN GITHUB PAGES!
-const HARDCODED_API_KEY = "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";
+const HARDCODED_API_KEY = "AQ.Ab8RN6L6Jp1QYG0dk74KI1hCDfGnbxeme3x2UKRE44YEEAO27A";
 
 let expenses = [];
 let editingId = null;
@@ -489,7 +489,7 @@ async function triggerAiCategorize() {
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${key}`,
         'HTTP-Referer': window.location.href, // Bắt buộc cho Github Pages
-        'X-Title': 'MoneyCat Web App'          // Bắt buộc cho Github Pages
+        'X-Title': 'MeoWallet Web App'          // Bắt buộc cho Github Pages
       },
       body: JSON.stringify({
         model: 'google/gemini-flash-1.5-8b',
@@ -559,7 +559,7 @@ async function sendChat() {
         'Content-Type': 'application/json', 
         'Authorization': `Bearer ${key}`,
         'HTTP-Referer': window.location.href, // Bắt buộc cho Github Pages
-        'X-Title': 'MoneyCat Web App'          // Bắt buộc cho Github Pages
+        'X-Title': 'MeoWallet Web App'          // Bắt buộc cho Github Pages
       },
       body: JSON.stringify({
         model: 'google/gemini-2.5-flash',
@@ -567,7 +567,7 @@ async function sendChat() {
         messages: [
           { 
             role: 'system', 
-            content: `Bạn là MoneyCat AI, một trợ lý tài chính cá nhân thân thiện và thông minh. Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam. Hãy trả lời câu hỏi của người dùng về các khoản chi tiêu của họ một cách ngắn gọn, súc tích (tối đa 2-3 câu). Luôn định dạng tiền tệ theo kiểu Việt Nam (ví dụ: 50.000₫ hoặc ₫50.000). Ngữ cảnh dữ liệu hiện tại:\n${context}` 
+            content: `Bạn là MeoWallet AI, một trợ lý tài chính cá nhân thân thiện và thông minh. Bạn nói tiếng Việt chuẩn, tự nhiên và hiểu sâu sắc ngữ cảnh Việt Nam. Hãy trả lời câu hỏi của người dùng về các khoản chi tiêu của họ một cách ngắn gọn, súc tích (tối đa 2-3 câu). Luôn định dạng tiền tệ theo kiểu Việt Nam (ví dụ: 50.000₫ hoặc ₫50.000). Ngữ cảnh dữ liệu hiện tại:\n${context}` 
           },
           { role: 'user', content: q }
         ]
